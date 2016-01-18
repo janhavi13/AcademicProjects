@@ -1,0 +1,211 @@
+#!/usr/bin/python
+from create_packet import *
+# from break_packet import *
+import break_packet
+import random
+import sys
+import os
+from urlparse import urlparse
+import time
+
+
+# Problem statement :
+# Create a RAW TCP packet. Download file from the sender and compare the content of the file using MD5 hash
+# This file is the executing file. It is executed from the terminal
+#./rawhttpget [url_name]
+
+
+# TCP FLAGS in the TCP header :
+# URG ACK PSH RST SYN FIN
+
+# 1. Create socket to send and receive data
+try:
+    send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+except socket.error, msg:
+    print 'Sender Socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+    sys.exit()
+
+try:
+    receive_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+except socket.error, msg:
+    print 'Receiver Socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+    sys.exit()
+
+# Extract the url from the linux command
+URL_INPUT = sys.argv[1]
+URL_ARRAY = urlparse(URL_INPUT)
+host = URL_ARRAY.netloc
+path = URL_ARRAY.path
+dest_ip = socket.gethostbyname(host)
+dest_host = host
+url = path
+
+# Extracting the file name from the LINUX Command
+path_length = len(path.split("/"))
+if path.split("/")[-1] == "":
+	file_name = "index.html"
+else:
+	file_name = path.split("/")[-1]
+
+# Remove the old file
+if os.path.isfile(file_name):
+	os.remove(file_name)
+
+#=======================================================================================================================
+# 2. Initiate Handshake to begin data transmission
+# - Send SYN packet
+
+seq_number_initial = random.randint(100,1000) #Give random initial sequence number
+ack_number_initial = random.randint(100,1000) #Give random initial ack number
+
+packet = send_syn_packet(seq_number_initial, ack_number_initial, 1, 0, 0, 0, '', dest_ip)
+send_sock.sendto(packet, (dest_ip, 0))  #(dest_ip,0) : since it is a raw socket there is no dedicted port henc we give 0
+
+
+# - Receive a SYN ACK packet
+#TimeOut if the server does not ACK in 1 min
+timeout = time.time() + 60   # 1 minutes from now. time.time() gives the current time
+while True:
+	test = 0
+	if test == 3 or time.time() > timeout:
+		print "ERROR: Connection TimeOut. Retrying .........."
+		packet = send_syn_packet(seq_number_initial, ack_number_initial, 1, 0, 0, 0, '', dest_ip)
+		send_sock.sendto(packet, (dest_ip, 0))
+	else:
+		test = test - 1
+		packet = receive_sock.recvfrom(65565)
+		data_recv = break_packet.recv_packet(packet)
+		break
+
+flags = data_recv[2]
+fin = flags & 1
+ack = flags & 16
+syn = flags & 2
+
+# - Send an ACK packet
+# - Check if you have received a SYN ACK and only then send an ACK packet
+if ack == 16:
+	if fin == 1:
+		packet = send_syn_packet(data_recv[1], (data_recv[0] + 1), 0, 1, 0, 0, '', dest_ip)
+		send_sock.sendto(packet, (dest_ip, 0))
+		packet = send_syn_packet(data_recv[1], (data_recv[0] + 1), 0, 0, 1, 0, '', dest_ip)
+		send_sock.sendto(packet, (dest_ip, 0))
+	elif syn == 2:
+		packet = send_syn_packet(data_recv[1], (data_recv[0] + 1), 0, 1, 0, 0, '', dest_ip)
+		send_sock.sendto(packet, (dest_ip, 0))
+
+#=======================================================================================================================
+
+# 3. TCP data Transmission
+# - Send a GET request
+# - Receive ACK for the GET request
+# - Receive PSH and ACK (PSH is set when data is sent)
+
+#Collect the flags from the TCP header here
+# SYN and ACK is set since the last response from the server is SYN ACK
+flags_in_data = data_recv[2]
+fin_in_data = flags_in_data & 1
+syn_in_data = flags_in_data & 2
+ack_in_data = flags_in_data & 16
+
+sequence_number = data_recv[1]
+ack_number = data_recv[0] + 1
+
+SEQUENCE_REQD = ack_number #What SequenceNumber you expect from the server
+
+request = "GET "+url+" HTTP/1.1\r\n" \
+		  "Host: " + dest_host + "\r\n" \
+								 "\r\n\  "
+# Send the GET request
+packet = send_syn_packet(sequence_number, ack_number, 0, 1, 0, 1, request, dest_ip)
+sequence_number += len(request)
+send_sock.sendto(packet, (dest_ip, 0))
+
+timeout = time.time() + 3*60 # 3min timer
+
+
+#Send an ACK for the recieved packet
+
+while fin_in_data != 1:
+	# 3 minutes from now
+	if time.time() > timeout:
+		print "ERROR: Data not recieved from the server for 3 min.. Session Exiting ........"
+		receive_sock.close()
+		send_sock.close()
+
+	packet = receive_sock.recvfrom(65565)
+
+	# Accept packets only from the destindation IP and not from any other TCP request
+	if not break_packet.check_if_valid_packet(packet, dest_ip):
+		continue
+
+	data_recv = break_packet.recv_packet(packet)
+
+	# PSH and ACK set or ACK set
+	flags_in_data = data_recv[2]
+	fin_in_data = flags_in_data & 1
+	syn_in_data = flags_in_data & 2
+	ack_in_data = flags_in_data & 16
+
+    #Continue if only ACK received from the server
+	if ack_in_data == 16 and data_recv[3] ==  0:
+		continue
+
+	#Store the sequence number received from the server
+	rec_sequence_number = data_recv[0]
+
+	if SEQUENCE_REQD == rec_sequence_number and not (break_packet.RETRANSMISSION_TCP or break_packet.RETRANSMISSION_IP):
+
+		# ack_number to be sent in ACK == SEQ_NUM_received + data_length
+		ack_number = rec_sequence_number+ data_recv[3]
+
+		# Append data to the file
+		#Change the file name - has to be same as the file on the browser
+		file = open(file_name, "a")
+		file.write(str(data_recv[4]))
+		file.close()
+
+		# Flags set here to check FIN in the current pack and stop data receiving
+		flags_in_data = data_recv[2]
+		fin_in_data = flags_in_data & 1
+		syn_in_data = flags_in_data & 2
+		ack_in_data = flags_in_data & 16
+		psh_in_data = flags_in_data & 8
+
+		#Send ACK packet for the TCP Segment received
+		packet = send_syn_packet(sequence_number, ack_number, 0, 1, 0, 0, '', dest_ip)
+		send_sock.sendto(packet, (dest_ip, 0))
+		SEQUENCE_REQD += data_recv[3]
+		timeout = time.time() + 3*60
+
+		#If OUT-OF-ORDER packet then ask for the current sequence packet.Send a DUP ACK
+	else:
+		packet = send_syn_packet(sequence_number, ack_number, 0, 1, 0, 0, '', dest_ip)
+		send_sock.sendto(packet, (dest_ip, 0))
+
+#=====================================================================================================================
+
+#4. Teardown of connection
+
+flags_in_data = data_recv[2]
+fin_in_data = flags_in_data & 1
+syn_in_data = flags_in_data & 2
+ack_in_data = flags_in_data & 16
+
+# -FIN-ACK recieved.Send ACK for it and close socket
+if ack_in_data==16:
+	if fin_in_data == 1:
+		packet = send_syn_packet(data_recv[1],(data_recv[0]+1),0,1,0,0,'',dest_ip)
+		send_sock.sendto(packet,(dest_ip , 0 ))
+		packet = send_syn_packet(data_recv[1],(data_recv[0]+1),0,0,1,0,'',dest_ip)
+		send_sock.sendto(packet,(dest_ip , 0 ))
+
+if break_packet.REJECT_RESPONSE:
+	print "ERROR:: RESPONSE NOT A 200 OK"
+	if os.path.isfile(file_name):
+		os.remove(file_name)
+
+send_sock.close()
+receive_sock.close()
+
+#======================================================================================================================

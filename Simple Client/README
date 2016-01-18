@@ -1,0 +1,17 @@
+Author : Janhavi Mahajan (NUID 001686377)
+	 Nivedita Mittal (NUID 001686609)
+
+APPROACH:
+1. Initially all the parameters from the command are extracted.
+2. Based on the -s parameter SSL or non SSL connection is opened
+3. Secret flags are returned for a verified NUID.
+4. If non registered NUID given as input then the server returns UnknownHuskyId
+
+
+CHALLENGES FACED:
+1. Collecting the SSL certificate Information from the server 
+2. getting the python script to run as shell script
+
+TESTING:
+1. Tested for all valid and invalid parameters in the linux command
+2. Checked if the secret flags are different for SSL and non SSL connection for the same NUID

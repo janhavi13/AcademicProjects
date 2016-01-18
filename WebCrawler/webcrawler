@@ -1,0 +1,204 @@
+#!/usr/bin/python
+import socket
+import sys
+from HTMLParser import HTMLParser
+
+
+CRLF = "\r\n"
+
+username = sys.argv[1]
+password = sys.argv[2]
+
+# First GET request to get the csrftoken to pass in the POST request
+
+sessionid =''
+host ='fring.ccs.neu.edu'     # connect to this host
+
+
+# create the HTTP GET request
+request = [
+    "GET /accounts/login/ HTTP/1.1",
+    "Host: fring.ccs.neu.edu",
+    "Connection: Close",
+    "",
+    "",
+]
+# Connect to the server
+s_get_socket = socket.socket()
+s_get_socket.connect((host, 80))
+
+# Send an HTTP request
+s_get_socket.send(CRLF.join(request))
+
+# Get the response :: Use a while loop since data comes in chunks so server maynot send all the data
+get_response = ''
+get_for_buffer = s_get_socket.recv(4096)
+while get_for_buffer:
+    get_response += get_for_buffer
+    get_for_buffer = s_get_socket.recv(4096)
+
+# HTTP headers will be separated from the body by an empty line
+header_data, _, body = get_response.partition(CRLF + CRLF)
+
+# removing the first line of the header
+header_info = header_data.split(CRLF)[1:]
+
+# getting the required info from the header like csrftoken , session id
+for index in range(len(header_info)):
+    set_cookie = header_info[index].split(":")[0]
+    if set_cookie == "Set-Cookie":
+        cookie_info = header_info[index].split(":")[1].split(";")[0]
+        key = cookie_info[1:10]
+        if key == "csrftoken":
+            csrftoken = cookie_info[11:]
+        else:
+            sessionid = cookie_info[11:]
+
+# Pass the above information extracted from GET into the POST header
+
+request_post = [
+    "POST /accounts/login/ HTTP/1.1",
+    "Host: fring.ccs.neu.edu",
+    "Content-Length: 109",
+    "Content-Type: application/x-www-form-urlencoded",
+    "Cookie: csrftoken="+csrftoken,
+    "",
+    "",
+]
+
+csrfmiddlewaretoken = csrftoken
+append_to_post_header = 'username='+username+'&password='+password+'&csrfmiddlewaretoken='+csrftoken+'&next=%2Ffakebook%2F'
+s_post_socket = socket.socket()
+s_post_socket.connect((host, 80))
+
+# Send an HTTP request
+post_header = CRLF.join(request_post)
+final_post_header = post_header+append_to_post_header
+s_post_socket.send(final_post_header)
+
+# Get the response (in several parts, if necessary)
+post_response = ''
+buffer_for_post = s_post_socket.recv(4096)
+while buffer_for_post:
+    post_response += buffer_for_post
+    buffer_for_post = s_post_socket.recv(4096)
+
+header_data_post, _, body_post = post_response.partition(CRLF + CRLF)
+post_header_info = header_data_post.split(CRLF)[1:]
+
+
+#get the sessioid again for th entire session this will be used
+for index in range(len(post_header_info)):
+    set_cookie = post_header_info[index].split(":")[0]
+    if set_cookie == "Set-Cookie":
+        cookiedata = post_header_info[index].split(": ")[1]
+        cookiedata = cookiedata.split(";")[0]
+        sessionidpost =  cookiedata.split("=")[1]
+
+    if set_cookie == "Location":
+        location = post_header_info[index].split(": ")[1:]
+
+
+
+# set various data structures to be used for crawling
+loc = location[0].split(host)
+next = location[0].split(host)
+next_url = next[1]
+visited_url = []
+url_to_crawl = []
+url_to_crawl.append(next_url)
+secret_flag = []
+
+def make_dict(tuples):
+    attributes = {}
+    for tup in tuples:
+        attributes[tup[0]] =tup[1]
+    return attributes
+
+# crawling logic and collecting secret flags
+while len(secret_flag) < 5:
+
+    link = url_to_crawl.pop(0)
+
+    if link in visited_url:
+        continue
+
+    request_get = [
+        "GET "+link+" HTTP/1.1",
+        "Host: fring.ccs.neu.edu",
+        "Connection: close",
+        "Cookie: csrftoken=" + csrftoken + "; sessionid="+sessionidpost,
+        "",
+        "",
+    ]
+
+
+# Connect to the server
+    s = socket.socket()
+    s.connect((host, 80))
+
+# Send an HTTP request
+    s.send(CRLF.join(request_get))
+
+# Get the response (in several parts, if necessary)
+    response2 = ''
+    buffer2 = s.recv(4096)
+    while buffer2:
+        response2 += buffer2
+        buffer2 = s.recv(4096)
+
+# HTTP headers will be separated from the body by an empty line
+    header_data2, _, body2 = response2.partition(CRLF + CRLF)
+    get_header_info = header_data2.split(CRLF)[1:]
+    error_page = header_data2.split(" ")[1]
+
+# Checking all the error pages :: If 301 then redirected url to be parsed. If 500 then retry rest ignore
+    if error_page == "301":
+        for index in range(len(header_data2)):
+            set_loc = get_header_info[index].split(":")[0]
+        if set_loc == "Location":
+            loc1 = get_header_info[index].split(": ")[1:]
+            loc_301 = loc1[0].split(host)
+        visited_url.append(link)
+        url_to_crawl.append(loc_301)
+
+    if error_page == "403":
+        visited_url.append(link)
+    if error_page == "404":
+        visited_url.append(link)
+    if error_page == "500":
+        url_to_crawl.append(link)
+
+# Parsing logic and getting secret flags is here
+    class MyHTMLParser(HTMLParser):
+        h2_flag = False
+        h2 = False
+
+        def handle_starttag(self, tag, attrs):
+            attributes = make_dict(attrs)
+            if tag == 'a':
+                if attributes['href'] not in visited_url:
+                    url_to_crawl.append(attributes['href'])
+
+            if tag == 'h2':
+                if 'class' in attributes.keys():
+                    if attributes['class'] == 'secret_flag':
+                        self.h2_flag = True
+
+
+        def handle_data(self, data):
+            if self.h2_flag:
+                secretf = data.split(": ")[1]
+                print(secretf)
+                secret_flag.append(secretf)
+                self.h2_flag = False
+
+    if error_page == "200":
+        parser = MyHTMLParser()
+        parser.feed(body2)
+        visited_url.append(link)
+
+
+
+
+

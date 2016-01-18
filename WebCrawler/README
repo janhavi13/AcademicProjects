@@ -1,0 +1,21 @@
+Author : Janhavi Mahajan (NUID 001686377)
+	 	 Nivedita Mittal (NUID 001686609)
+
+High level approach: 
+
+1. Login to the website using an HTTP POST request by passing csrftoken and sessionid provided by the /account/login page
+2. Parse the URLs on /fakebook/ using an HTMLParser. Store the visited url in a dictionary.
+4. Then continue to the next URL from the array of all urls to be visited
+5. On every page search if a secret_flag is present.
+6. If a flag is found push it to a secret_flag array. Stop the loop once 5 flags are found.
+7. If the GET request returns an HTTP response with a status code 200 , crawl the page
+8. If the GET request returns an HTTP response with a status code between 400-500, it is a fatal error and webcrawler terminates
+9. If the GET request returns an HTTP response with a status code as 500, it is a server error
+
+Challenges:
+1. Parsing the HTTP responses
+2. Handling all response codes for the responses
+
+Tests:
+1. 5 secret flags received
+2. Secret flags different for each team member

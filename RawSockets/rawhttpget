@@ -1,0 +1,8 @@
+if [ "$1" = "" ]
+then
+  echo "Usage: rawhttpget [URL]"
+  exit
+fi
+
+sudo ./actual_rawhttpget $1
+
