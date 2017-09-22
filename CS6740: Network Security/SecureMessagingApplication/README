@@ -1,0 +1,54 @@
+1. Open terminal and enter python server.py
+2. Open separate terminal and enter python client.py
+In Client:
+- enter username (alice, bob,dog)
+- password(we for any username)
+
+Client accepts:
+list
+send
+logout
+
+list command to be given as: 
+list
+
+send command to be given as:
+send <other_loggedin_user> <message>
+
+logout command given as:
+logout
+
+
+INSTALLATION:
+As per tested on  lab linux VM
+- cryptography version 1.7.2 to be installed
+- to upgrade/install cryptography library:
+	$ sudo apt-get install python-pip
+	$ pip install cryptography --upgrade
+
+
+FOLDER STRUCTURE:
+
+-project_submission
+	-README
+	-DesignDocument
+	-DesignDocumentNotImplemented
+ 	-ps4
+		-client.py
+		-server.py
+		-communication.py
+		-constants.py
+		-utility_functions.py
+		-dir
+			- passwd
+		-keys
+			(below keys used from folder)
+			pri_4096_s.der
+			pub_4096_s.der
+
+
+
+	
+
+
+
