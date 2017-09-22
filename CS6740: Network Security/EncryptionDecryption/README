@@ -1,0 +1,21 @@
+Python Version 2.7.10
+
+install cryptography by following command
+version : 1.7.2
+ sudo pip install cryptography
+
+Generate RSA key pairs using below commands:
+$ openssl genrsa -out private_key.pem 2048
+$ openssl pkcs8 -topk8 -inform PEM -outform DER -in private_key.pem -out private_key.der -nocrypt
+$ openssl rsa -in private_key.pem -pubout -outform DER -out public_key.der
+
+
+
+1. The sender and receiver's pair of key (public/private) should be in the same location as fcrypt.py
+2. The input file could be any format and should be in the same location as fcrypt.py
+3. For Encryption run the below command :
+    python fcrypt.py -e receiver_public_key.pub sender_private_key input_plaintext_file ciphertext_file
+4. For Decryption run the below command :
+    python fcrypt.py -d receiver_private_key sender_public_key.pub ciphertext_file output_plaintext_file
+
+
