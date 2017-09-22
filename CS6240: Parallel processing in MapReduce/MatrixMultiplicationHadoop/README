@@ -1,0 +1,33 @@
+README
+
+Unzip the submitted folder
+Go to the SourceCode folder 
+
+A. To run the code
+
+I . Standalone
+Open the src folder, It has two versions of the code
+Version A: RowbyColumn 
+Version B: ColumnbyRow
+
+To Run Version A(Row by Column)
+Change the following line in the pom to:
+<sourceDirectory>RowbyColumn/src/main/java</sourceDirectory>
+
+To Run Version B(Column by Row)
+Change the following line in the pom to:
+<sourceDirectory>ColumnbyRow/src/main/java</sourceDirectory>
+
+
+1. Add wikipedia--html.0.bz2 , wikipedia--html.1.bz2 , wikipedia--html.2.bz2, wikipedia--html.3.bz2 to input folder
+2. Run make alone command from terminal
+
+
+II. AWS 
+To run on AWS:
+To run on aws make sure to enable the below entry in the pom.xml
+1. run make upload-input-aws
+2. Set aws.num.nodes to 5 or 10 for 5 workers /10 workers respectively
+3. run make cloud // make sure you change the aws variables
+4. run download-output-aws
+

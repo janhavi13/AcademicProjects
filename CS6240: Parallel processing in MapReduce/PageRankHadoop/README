@@ -1,0 +1,35 @@
+Unzip the submitted folder
+Go to the SourceCode folder 
+
+A. To run the code
+
+I . Standalone
+Open the src folder
+
+1. Add wikipedia--html.0.bz2 , wikipedia--html.1.bz2 , wikipedia--html.2.bz2, wikipedia--html.3.bz2 to input folder
+2. Set the hadoop environment to standalone mode
+3. Run make alone command from terminal
+
+
+II. AWS 
+To run on AWS:
+
+To run on aws make sure to enable the below entry in the pom.xml
+<!--<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.4</version>
+        <configuration>
+            <archive>
+                <manifest>
+                    <mainClass>PageRankDriver</mainClass>
+                </manifest>
+            </archive>
+        </configuration>
+</plugin>-->
+
+1. run make upload-input-aws
+2. Set aws.num.nodes to 5 or 10 for 5 workers /10 workers respectively
+3. run make cloud // make sure you change the aws variables
+4. run download-output-aws
+
