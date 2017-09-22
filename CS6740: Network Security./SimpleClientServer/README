@@ -1,0 +1,17 @@
+Python Version 2.7.10
+
+1. Run Server
+Command - python server.py -sp <portnumber>
+
+2. Run client(s)
+Command - python client.py -u <username> -sip <serverip> -sp <portnumber>
+
+First Initialize server and then start multiple clients
+
+
+python server.py -sp 5000
+python client.py -u A -sip localhost -sp 5000
+
+python client.py -u A -sip localhost -sp 5000
+
+
